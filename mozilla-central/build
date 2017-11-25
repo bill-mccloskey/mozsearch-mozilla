@@ -3,25 +3,21 @@
 set -e # Errors are fatal
 set -x # Show commands
 
-date
+while read URL
+do
+    date
 
-cat > $INDEX_ROOT/mozconfig <<EOF
-. \$topsrcdir/browser/config/mozconfig
-mk_add_options MOZ_OBJDIR=$OBJDIR
-ac_add_options --enable-debug
-ac_add_options --enable-optimize
-ac_add_options --enable-gczeal
-ac_add_options --without-ccache
-ac_add_options --enable-js-shell
-EOF
+    echo Downloading index data from $URL
+    mkdir $INDEX_ROOT/analysis-tmp
+    pushd $INDEX_ROOT/analysis-tmp
+    wget -q $URL
+    unzip target.mozsearch-index.zip
+    popd
 
-mkdir -p $OBJDIR
+    date
 
-# Add the special clang flags.
-$MOZSEARCH_PATH/scripts/indexer-setup.py >> $INDEX_ROOT/mozconfig
+    echo Combining analysis
+    $MOZSEARCH_PATH/scripts/combine-analysis.py $INDEX_ROOT/analysis $INDEX_ROOT/analysis-tmp
 
-cd $FILES_ROOT
-MOZCONFIG=$INDEX_ROOT/mozconfig ./mach build
-cd -
-
-date
+    rm -rf $INDEX_ROOT/analysis-tmp
+done < $INDEX_ROOT/analysis-urls

@@ -3,22 +3,48 @@
 set -e # Errors are fatal
 set -x # Show commands
 
+pushd /tmp
+virtualenv thenv
+cd thenv
+./bin/pip install treeherder-client
+popd
+
+SCRIPT_PATH=$(readlink -f "$0")
+DIR=$(dirname $(dirname "$SCRIPT_PATH"))
+/tmp/thenv/bin/python $DIR/find-searchfox-treeherder.py > /tmp/sf-push
+
+echo "Found analysis revision..."
+cat /tmp/sf-push
+
+HG_REV=$(tail -n +1 /tmp/sf-push | head -1)
+tail -n +2 /tmp/sf-push > $INDEX_ROOT/analysis-urls
+
+rm /tmp/sf-push
+
+GIT_REV=$(curl https://api.pub.build.mozilla.org/mapper/gecko-dev/rev/hg/$HG_REV | cut -f1 -d' ')
+
 date
 
 echo Downloading Gecko
 pushd $INDEX_ROOT
-wget -q https://s3-us-west-2.amazonaws.com/searchfox.repositories/gecko-dev.tar
-tar xf gecko-dev.tar
-rm gecko-dev.tar
+if [ ! -d gecko-dev ]
+then
+   wget -q https://s3-us-west-2.amazonaws.com/searchfox.repositories/gecko-dev.tar
+   tar xf gecko-dev.tar
+   rm gecko-dev.tar
+fi
 popd
 
 date
 
 echo Downloading Gecko blame
 pushd $INDEX_ROOT
-wget -q https://s3-us-west-2.amazonaws.com/searchfox.repositories/gecko-blame.tar
-tar xf gecko-blame.tar
-rm gecko-blame.tar
+if [ ! -d gecko-blame ]
+then
+    wget -q https://s3-us-west-2.amazonaws.com/searchfox.repositories/gecko-blame.tar
+    tar xf gecko-blame.tar
+    rm gecko-blame.tar
+fi
 popd
 
 date
@@ -34,6 +60,7 @@ date
 echo Updating git
 pushd $GIT_ROOT
 git pull
+git reset --hard $GIT_REV
 popd
 
 echo Generating blame information
